@@ -24,11 +24,8 @@ typedef struct s_elf_info
 
 	t_phdr		*current;
 	int	nb_headers;
-	int	total_data_size;
-	int	current_offset;
-
-	int header_load_initialized;
-
+	int	data_offset;
+	int	header_offset;
 } t_elf_info;
 
 void initialize_elf(Elf64_Ehdr *elf_hdr)
@@ -75,54 +72,54 @@ int create_header(t_elf_info *elf_info, int type, void *data, int data_size, int
 
 	new_phdr->info.p_type = type;
 	new_phdr->info.p_flags = flag;
-	new_phdr->info.p_offset = elf_info->current_offset;
 	new_phdr->info.p_filesz = data_size;
 	new_phdr->info.p_memsz = data_size;
 	new_phdr->info.p_align = 1;
+
+	if (type == PT_PHDR || type == PT_INTERP)
+		new_phdr->info.p_offset = elf_info->header_offset;
+	if (type == PT_LOAD) 
+		new_phdr->info.p_offset = elf_info->data_offset;
+
 	new_phdr->info.p_vaddr = VMA_BASE + new_phdr->info.p_offset;
 	new_phdr->info.p_paddr = new_phdr->info.p_vaddr;
-	
-	if (!elf_info->header_load_initialized && type == PT_LOAD) {
-		new_phdr->offset_is_header_relative = 1;
-		new_phdr->info.p_offset = 0;
-		new_phdr->info.p_vaddr = VMA_BASE + new_phdr->info.p_offset;
-		new_phdr->info.p_paddr = new_phdr->info.p_vaddr;
-		elf_info->header_load_initialized = 1;
-	}
-	
 	// update PHDR
 	elf_info->phdrs->info.p_filesz += phdr_size;
 	elf_info->phdrs->info.p_memsz += phdr_size;
 	t_phdr *node = elf_info->phdrs;
 	while (node != NULL)
 	{
-		if (!node->offset_is_header_relative) {
+		if (node->info.p_type == PT_INTERP)
+		{
 			node->info.p_offset += phdr_size;
 			node->info.p_vaddr = VMA_BASE + node->info.p_offset;
 			node->info.p_paddr = node->info.p_vaddr;
 		}
 		node = node->next;
 	}
+	if (type == PT_LOAD)
+		elf_info->data_offset += data_size;
+
 	elf_info->nb_headers++;
 	elf_info->ehdr.e_phnum = elf_info->nb_headers;
-	elf_info->current_offset += phdr_size + data_size;
 	elf_info->current = new_phdr;
+	elf_info->header_offset += phdr_size;
 	return (0);
 }
 
 int initialize_elf_info(t_elf_info *elf_info)
 {
 	initialize_elf(&elf_info->ehdr);
+	elf_info->header_offset += sizeof(elf_info->ehdr);
 	if (elf_info->phdrs)
-	return 1;
+		return 1;
 	
 	elf_info->nb_headers = 0;
-	elf_info->total_data_size = sizeof(Elf64_Ehdr);
-	elf_info->current_offset = sizeof(Elf64_Ehdr);
-	elf_info->header_load_initialized = 0;
+	// elf_info->current_offset = sizeof(Elf64_Ehdr);
+	// elf_info->header_load_initialized = 0;
+	elf_info->data_offset = 0;
 	
 	create_header(elf_info, PT_PHDR, NULL, 0, PF_R);
-	
 	return (0);
 	// initialize_phdr(&elf_info->phdrs);
 }
@@ -209,7 +206,9 @@ int main(int argc, char const *argv[])
 	initialize_elf_info(&elf_info);
 	// create_header(&elf_info, PT_INTERP, INTERPRETER, sizeof(INTERPRETER), PF_R);
 	create_header(&elf_info, PT_LOAD, NULL, 0x1000, PF_R);
+
 	load_code(&elf_info, "code.bin");
+
 	size_t bytes;
 	bytes = sizeof(elf_info.ehdr);
 	ft_memcpy(buffer, &elf_info.ehdr, sizeof(elf_info.ehdr));
@@ -222,8 +221,9 @@ int main(int argc, char const *argv[])
 		node = node->next;
 	}
 	// ft_memcpy(buffer + bytes, INTERPRETER, sizeof(INTERPRETER));
-	int i = elf_info.current_offset;
 	ft_memcpy(buffer + 0x1000, elf_info.current->data, elf_info.current->info.p_filesz);
+	ft_memcpy(buffer + 0x1000 * 2, elf_info.current->data, elf_info.current->info.p_filesz);
+
 	// initialize_phdr(&p_hdr);
 	// initialize_interp_hdr(&interp_hdr);
 	// initialize_load_hdr(&load_hdr);
