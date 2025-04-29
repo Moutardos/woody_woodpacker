@@ -1,4 +1,7 @@
-EXEC	:=	elf_generator
+ENTRY	:= main_generator.c
+
+EXEC	:= $(if $(filter main_parser.c,$(ENTRY)),elf_parser,elf_generator)
+
 
 BIN_DIR := bin
 NAME	:= $(addprefix $(BIN_DIR)/, $(EXEC))
@@ -10,7 +13,7 @@ LIBS_TARGET			:=	libs/libft/libft.a
 SRC_DIR				:=	srcs
 
 SRCS				:=	\
-						elf_generator.c
+						elf_generator.c $(ENTRY)
 
 SRCS				:=	${SRCS:%=${SRC_DIR}/%}
 
@@ -19,7 +22,7 @@ OBJ_DIR				:=	objs
 OBJS				:=	${SRCS:${SRC_DIR}/%.c=${OBJ_DIR}/%.o}
 
 CFLAGS				:=	-Wall -Wextra
-CPPFLAGS			:=	-I includes -I libs/libft -gdwarf
+CPPFLAGS			:=	-I includes -I libs/libft/src -gdwarf
 LDFLAGS				:=	${addprefix -L, ${dir ${LIBS_TARGET}}}
 LDLIBS				:=	${addprefix -l, ${LIBS}}
 
@@ -34,6 +37,10 @@ $(NAME): $(LIBS_TARGET) $(OBJS)
 	mkdir -p $(BIN_DIR)
 	$(CC) ${LDFLAGS} $^ ${LDLIBS} -o $@ 
 .PHONY: $(NAME)
+
+parser:
+	$(MAKE) ENTRY=main_parser.c
+.PHONY: parser
 
 $(LIBS_TARGET):
 	$(MAKE) -C $(@D)
