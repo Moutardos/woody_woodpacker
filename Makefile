@@ -13,7 +13,9 @@ LIBS_TARGET			:=	libs/libft/libft.a
 SRC_DIR				:=	srcs
 
 SRCS				:=	\
-						elf_generator.c $(ENTRY)
+						elf_generator.c \
+						elf_utils.c \
+						$(ENTRY)
 
 SRCS				:=	${SRCS:%=${SRC_DIR}/%}
 

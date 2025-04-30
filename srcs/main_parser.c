@@ -111,6 +111,19 @@ int main(int argc, char* argv[]) {
 				   sizeof(Elf64_Shdr));
 		new_shdr->data = file_buffers.file + new_shdr->info.sh_offset;
 
+		if (new_shdr->info.sh_type == SHT_DYNAMIC) {
+
+
+			Elf64_Dyn entry = {0};
+			Elf64_Off cursor = new_shdr->info.sh_offset;
+			do
+			{
+				ft_memmove(&entry, file_buffers.file + cursor, sizeof(Elf64_Dyn));
+				printf("c'est le tag ici %lx\n", entry.d_tag);
+				cursor += sizeof(Elf64_Dyn);
+			} while (entry.d_tag != DT_NULL);
+		}
+
 		if (debug) {
 			Elf64_Word type = new_shdr->info.sh_type;
 			printf("New section, type: ");
