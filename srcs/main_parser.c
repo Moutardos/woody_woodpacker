@@ -5,37 +5,7 @@
 
 #include "elf_generator.h"
 #include "elf_parser.h"
-
-// int cmp_offset(t_phdr* a, t_phdr* b) {
-// 	return a->info.p_offset - b->info.p_offset;
-// }
-
-// void sort_phdr_array(t_phdr* arr[], int len) {
-// 	for (int i = 0; i < len - 1; i++)
-// 		for (int j = 0; j < len - i - 1; j++)
-// 			if (cmp_offset(arr[j], arr[j + 1]) > 0) {
-// 				t_phdr* tmp = arr[j];
-// 				arr[j] = arr[j + 1];
-// 				arr[j + 1] = tmp;
-// 			}
-// }
-
-// void fill_phdr_data(t_phdr* phdr, t_file_buffers* file_buffers) {}
-
-// void fill_phdrs_data(t_phdr* phdrs, int len, t_file_buffers* file_buffers) {
-// 	t_phdr** copy = ft_calloc(len, sizeof(t_phdr*));
-
-// 	int i = 0;
-// 	for (t_phdr* cur = phdrs; cur; cur = cur->next)
-// 		copy[i++] = cur;
-
-// 	sort_phdrsh_type_array(copy, len);
-
-// 	for (int i = 0; i < len; i++)
-// 		fill_phdr_data(copy[i], file_buffers);
-
-// 	free(copy);
-// }
+#include "elf_utils.h"
 
 void print_ehdr(Elf64_Ehdr ehdr) {
 	printf("e_ident: %s\n", ehdr.e_ident);
@@ -111,19 +81,6 @@ int main(int argc, char* argv[]) {
 				   sizeof(Elf64_Shdr));
 		new_shdr->data = file_buffers.file + new_shdr->info.sh_offset;
 
-		if (new_shdr->info.sh_type == SHT_DYNAMIC) {
-
-
-			Elf64_Dyn entry = {0};
-			Elf64_Off cursor = new_shdr->info.sh_offset;
-			do
-			{
-				ft_memmove(&entry, file_buffers.file + cursor, sizeof(Elf64_Dyn));
-				printf("c'est le tag ici %lx\n", entry.d_tag);
-				cursor += sizeof(Elf64_Dyn);
-			} while (entry.d_tag != DT_NULL);
-		}
-
 		if (debug) {
 			Elf64_Word type = new_shdr->info.sh_type;
 			printf("New section, type: ");
@@ -142,7 +99,17 @@ int main(int argc, char* argv[]) {
 
 	/// INJECT CODE ///
 
+	Elf64_Addr old_entry = elf_info.ehdr.e_entry;
+	elf_info.data_offset =
+		(file_buffers.data - file_buffers.file) + file_buffers.data_size;
 	size_t bytes = load_code(&elf_info, "../" DFLT_PATH);
+
+	elf_info.ehdr.e_entry = old_entry;
+
+	if (elf_info.ehdr.e_entry - VMA_BASE >= data_off)
+		elf_info.ehdr.e_entry += sizeof(Elf64_Phdr);
+	if (elf_info.ehdr.e_entry - VMA_BASE >= data_off + file_buffers.data_size)
+		elf_info.ehdr.e_entry += bytes;
 	elf_info.ehdr.e_entry = 0x401040;
 
 	elf_info.ehdr.e_shoff += sizeof(Elf64_Phdr) + bytes;
@@ -162,6 +129,59 @@ int main(int argc, char* argv[]) {
 	}
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next) {
+		if (cur->info.sh_type == SHT_DYNAMIC) {
+			Elf64_Dyn entry = {0};
+			Elf64_Off cursor = cur->info.sh_offset;
+			do {
+				ft_memmove(&entry, file_buffers.file + cursor,
+						   sizeof(Elf64_Dyn));
+
+				if (is_entry_a_ptr(entry)) {
+					Elf64_Addr old_ptr = entry.d_un.d_ptr;
+					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
+
+					if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+						if (ptr_off >= data_off)
+							entry.d_un.d_ptr += sizeof(Elf64_Phdr);
+						if (ptr_off >= data_off + file_buffers.data_size)
+							entry.d_un.d_ptr += bytes;
+
+						if (entry.d_un.d_ptr != old_ptr)
+							ft_memmove(file_buffers.file + cursor, &entry,
+									   sizeof(Elf64_Dyn));
+					}
+				}
+
+				cursor += sizeof(Elf64_Dyn);
+			} while (entry.d_tag != DT_NULL);
+		} else if (cur->info.sh_type == SHT_SYMTAB) {
+			Elf64_Sym entry = {0};
+			int		  nb_entries = cur->info.sh_size / cur->info.sh_entsize;
+
+			for (int i = 0, cursor = cur->info.sh_offset; i < nb_entries;
+				 i++, cursor += sizeof(Elf64_Sym)) {
+				ft_memmove(&entry, file_buffers.file + cursor,
+						   sizeof(Elf64_Sym));
+
+				if (entry.st_shndx != SHN_UNDEF &&
+					entry.st_shndx < SHN_LORESERVE) {
+					Elf64_Addr old_ptr = entry.st_value;
+					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
+
+					if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+						if (ptr_off >= data_off)
+							entry.st_value += sizeof(Elf64_Phdr);
+						if (ptr_off >= data_off + file_buffers.data_size)
+							entry.st_value += bytes;
+
+						if (entry.st_value != old_ptr)
+							ft_memmove(file_buffers.file + cursor, &entry,
+									   sizeof(Elf64_Sym));
+					}
+				}
+			}
+		}
+
 		if (cur->info.sh_offset >= data_off) {
 			cur->info.sh_offset += sizeof(Elf64_Phdr);
 			cur->info.sh_addr += sizeof(Elf64_Phdr);

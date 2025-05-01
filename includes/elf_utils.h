@@ -1,13 +1,14 @@
 #ifndef UTILS_H
-# define UTILS_H
-# include <elf.h>
-# define NB_PTR_ENTRIES 13
+#define UTILS_H
+
+#include <elf.h>
+
+#define NB_PTR_ENTRIES 12
 
 typedef Elf64_Sxword t_tag;
-typedef t_tag t_ptr_tags[NB_PTR_ENTRIES];
+typedef t_tag		 t_ptr_tags[NB_PTR_ENTRIES + 1];
 
-
-int is_entries_a_ptr(Elf64_Dyn entry);
-int	element_in_array(Elf64_Sxword element, const Elf64_Sxword *array);
+int is_entry_a_ptr(Elf64_Dyn entry);
+int element_in_array(Elf64_Sxword element, const Elf64_Sxword* array);
 
 #endif

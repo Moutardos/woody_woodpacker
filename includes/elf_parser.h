@@ -7,8 +7,8 @@ typedef struct s_buffers {
 	uint8_t* file;
 	uint8_t* data;
 
-	int file_size;
-	int data_size;
+	unsigned long file_size;
+	unsigned long data_size;
 } t_file_buffers;
 
 #endif	// ELF_PARSER_H
