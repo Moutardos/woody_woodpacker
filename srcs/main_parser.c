@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
 		elf_info.ehdr.e_entry += sizeof(Elf64_Phdr);
 	if (elf_info.ehdr.e_entry - VMA_BASE >= data_off + file_buffers.data_size)
 		elf_info.ehdr.e_entry += bytes;
-	elf_info.ehdr.e_entry = 0x401040;
+	// elf_info.ehdr.e_entry = 0x40c1040;
 
 	elf_info.ehdr.e_shoff += sizeof(Elf64_Phdr) + bytes;
 
@@ -121,7 +121,8 @@ int main(int argc, char* argv[]) {
 			cur->info.p_memsz += sizeof(Elf64_Phdr);
 			first_load_incremented = 1;
 		}
-		if (cur->info.p_offset >= data_off + file_buffers.data_size) {
+		// if (cur->info.p_type == PT_DYNAMIC) continue;
+		if (cur->info.p_vaddr - VMA_BASE >= data_off + file_buffers.data_size) {
 			cur->info.p_offset += bytes;
 			cur->info.p_vaddr += bytes;
 			cur->info.p_paddr += bytes;
@@ -140,7 +141,7 @@ int main(int argc, char* argv[]) {
 					Elf64_Addr old_ptr = entry.d_un.d_ptr;
 					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
 
-					if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
 						if (ptr_off >= data_off)
 							entry.d_un.d_ptr += sizeof(Elf64_Phdr);
 						if (ptr_off >= data_off + file_buffers.data_size)
@@ -149,7 +150,7 @@ int main(int argc, char* argv[]) {
 						if (entry.d_un.d_ptr != old_ptr)
 							ft_memmove(file_buffers.file + cursor, &entry,
 									   sizeof(Elf64_Dyn));
-					}
+					// }
 				}
 
 				cursor += sizeof(Elf64_Dyn);
@@ -168,28 +169,94 @@ int main(int argc, char* argv[]) {
 					Elf64_Addr old_ptr = entry.st_value;
 					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
 
-					if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
 						if (ptr_off >= data_off)
 							entry.st_value += sizeof(Elf64_Phdr);
+						// if (entry.st_shndx == 21) continue;
 						if (ptr_off >= data_off + file_buffers.data_size)
 							entry.st_value += bytes;
 
 						if (entry.st_value != old_ptr)
 							ft_memmove(file_buffers.file + cursor, &entry,
 									   sizeof(Elf64_Sym));
-					}
+					// }
 				}
 			}
-		}
+		} else if (cur->info.sh_type == SHT_RELA)
+		{
+			Elf64_Rela entry = {0};
+			int		  nb_entries = cur->info.sh_size / cur->info.sh_entsize;
 
-		if (cur->info.sh_offset >= data_off) {
-			cur->info.sh_offset += sizeof(Elf64_Phdr);
-			cur->info.sh_addr += sizeof(Elf64_Phdr);
-		}
-		if (cur->info.sh_offset >= data_off + file_buffers.data_size) {
-			cur->info.sh_offset += bytes;
-			cur->info.sh_addr += bytes;
-		}
+			for (int i = 0, cursor = cur->info.sh_offset; i < nb_entries;
+				 i++, cursor += sizeof(Elf64_Rela)) {
+					ft_memmove(&entry, file_buffers.file + cursor,
+						sizeof(Elf64_Rela));
+					Elf64_Addr	old_ptr = entry.r_offset;
+					Elf64_Off	ptr_off = entry.r_offset - VMA_BASE;
+
+					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+						if (ptr_off >= data_off)
+							entry.r_offset += sizeof(Elf64_Phdr);
+						if (ptr_off >= data_off + file_buffers.data_size)
+							entry.r_offset += bytes;
+
+						if (entry.r_offset != old_ptr)
+							ft_memmove(file_buffers.file + cursor, &entry,
+										sizeof(Elf64_Rela));			  
+					// }
+			}
+		} 
+		// else if (cur->info.sh_type == SHT_GNU_verneed) {
+		// 	Elf64_Verneed entry = {0};
+		// 	Elf64_Vernaux entry_aux = {0};
+		// 	int		  nb_entries = 1;// cur->info.sh_size / cur->info.sh_entsize;
+
+		// 	for (int i = 0, cursor = cur->info.sh_offset; i < nb_entries;
+		// 		i++, cursor += sizeof(Elf64_Verneed)) {
+		// 			ft_memmove(&entry, file_buffers.file + cursor,
+		// 				sizeof(Elf64_Verneed));
+		// 			// Elf64_Addr	old_ptr = entry.vn_aux;
+		// 			// Elf64_Off	ptr_off = entry.vn_aux;
+
+		// 			ft_memmove(&entry_aux, file_buffers.file + cursor + entry.vn_aux,
+		// 				sizeof(Elf64_Vernaux));
+
+		// 			while (entry_aux.vna_next) {
+		// 				ft_memmove(&entry_aux, file_buffers.file + cursor + entry.vn_aux + entry_aux.vna_next,
+		// 					sizeof(Elf64_Vernaux));
+		// 			}
+
+		// 			// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
+		// 				// if (ptr_off >= data_off)
+		// 				// 	entry.vn_aux += sizeof(Elf64_Phdr);
+		// 				// if (ptr_off >= data_off + file_buffers.data_size)
+		// 				// 	entry.vn_aux += bytes;
+
+		// 				// if (entry.vn_aux != old_ptr)
+		// 				// 	ft_memmove(file_buffers.file + cursor, &entry,
+		// 				// 				sizeof(Elf64_Verneed));			  
+		// 			// }
+		// 	}
+		// }
+
+		Elf64_Off addr_off = cur->info.sh_addr - VMA_BASE;
+		// if (cur->info.sh_offset > 0 && cur->info.sh_offset < file_buffers.file_size
+		// 	&& addr_off > 0 && addr_off < file_buffers.file_size) {
+			if (cur->info.sh_offset >= data_off || addr_off >= data_off) {
+				cur->info.sh_offset += sizeof(Elf64_Phdr);
+
+				if (cur->info.sh_addr > VMA_BASE)
+					cur->info.sh_addr += sizeof(Elf64_Phdr);
+			}
+			// if (cur->info.sh_type == SHT_DYNAMIC) continue;
+			if (cur->info.sh_offset >= data_off + file_buffers.data_size
+				|| addr_off >= data_off + file_buffers.data_size) {
+				cur->info.sh_offset += bytes;
+
+				if (cur->info.sh_addr > VMA_BASE)
+					cur->info.sh_addr += bytes;
+			}
+		// }
 	}
 
 	/// OUTPUT ELF ///

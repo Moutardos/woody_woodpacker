@@ -6,7 +6,7 @@
 # include <fcntl.h>
 
 # define MACHINE EM_X86_64
-# define VMA_BASE 0x400000
+# define VMA_BASE 0x000000
 
 # define INTERPRETER "/lib64/ld-linux-x86-64.so.2"
 # define DFLT_PATH "misc/code.bin"
