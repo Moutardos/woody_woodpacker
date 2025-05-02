@@ -239,24 +239,25 @@ int main(int argc, char* argv[]) {
 		// 	}
 		// }
 
-		Elf64_Off addr_off = cur->info.sh_addr - VMA_BASE;
-		// if (cur->info.sh_offset > 0 && cur->info.sh_offset < file_buffers.file_size
-		// 	&& addr_off > 0 && addr_off < file_buffers.file_size) {
-			if (cur->info.sh_offset >= data_off || addr_off >= data_off) {
+		Elf64_Off addr_off = cur->info.sh_addr > VMA_BASE ? cur->info.sh_addr - VMA_BASE : 0;
+		Elf64_Off off = cur->info.sh_offset; 
+		if (cur->info.sh_offset > 0 /**&& cur->info.sh_offset < file_buffers.file_size
+			&& addr_off > 0 && addr_off < file_buffers.file_size**/) {
+			if (off >= data_off || addr_off >= data_off) {
 				cur->info.sh_offset += sizeof(Elf64_Phdr);
 
 				if (cur->info.sh_addr > VMA_BASE)
 					cur->info.sh_addr += sizeof(Elf64_Phdr);
 			}
 			// if (cur->info.sh_type == SHT_DYNAMIC) continue;
-			if (cur->info.sh_offset >= data_off + file_buffers.data_size
+			if (off >= data_off + file_buffers.data_size
 				|| addr_off >= data_off + file_buffers.data_size) {
 				cur->info.sh_offset += bytes;
 
 				if (cur->info.sh_addr > VMA_BASE)
 					cur->info.sh_addr += bytes;
 			}
-		// }
+		}
 	}
 
 	/// OUTPUT ELF ///
