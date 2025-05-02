@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
 					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
 						if (ptr_off >= data_off)
 							entry.st_value += sizeof(Elf64_Phdr);
-						// if (entry.st_shndx == 21) continue;
+						if (entry.st_shndx != 22)
 						if (ptr_off >= data_off + file_buffers.data_size)
 							entry.st_value += bytes;
 
@@ -249,7 +249,7 @@ int main(int argc, char* argv[]) {
 				if (cur->info.sh_addr > VMA_BASE)
 					cur->info.sh_addr += sizeof(Elf64_Phdr);
 			}
-			// if (cur->info.sh_type == SHT_DYNAMIC) continue;
+			if (cur->info.sh_type == SHT_DYNAMIC) continue;
 			if (off >= data_off + file_buffers.data_size
 				|| addr_off >= data_off + file_buffers.data_size) {
 				cur->info.sh_offset += bytes;
