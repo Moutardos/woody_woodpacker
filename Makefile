@@ -4,7 +4,7 @@ EXEC	:= $(if $(filter main_parser.c,$(ENTRY)),elf_parser,elf_generator)
 
 
 BIN_DIR := bin
-NAME	:= $(addprefix $(BIN_DIR)/, $(EXEC))
+NAME	:= $(EXEC)
 
 LIBS				:=	ft
 LIBS_TARGET			:=	libs/libft/libft.a
@@ -28,6 +28,7 @@ CPPFLAGS			:=	-I includes -I libs/libft/src -gdwarf
 LDFLAGS				:=	${addprefix -L, ${dir ${LIBS_TARGET}}}
 LDLIBS				:=	${addprefix -l, ${LIBS}}
 
+COMPILE_ELF		= clang -m64
 
 RM					:=	${RM} -r
 
@@ -44,6 +45,11 @@ parser:
 	$(MAKE) ENTRY=main_parser.c
 .PHONY: parser
 
+sample:
+	$(COMPILE_ELF) misc/sample.c -o $(BIN_DIR)/sample
+.PHONY: sample 
+
+
 $(LIBS_TARGET):
 	$(MAKE) -C $(@D)
 .PHONY: $(LIBS_TARGET)
@@ -58,8 +64,10 @@ clean:
 	$(RM) $(OBJ_DIR)
 .PHONY: clean
 
+#TODO: make better variable for name
 fclean: clean
-	$(RM) $(BIN_DIR)
+	$(RM) elf_parser
+	$(RM) $(NAME)
 .PHONY: fclean
 
 re: fclean

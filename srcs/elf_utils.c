@@ -25,3 +25,13 @@ int is_entry_a_ptr(Elf64_Dyn entry) {
 
 	return (element_in_array(entry.d_tag, ptr_tags));
 }
+
+void print_ehdr(Elf64_Ehdr ehdr) {
+	printf("e_ident: %s\n", ehdr.e_ident);
+	printf("e_ident hex:\n");
+	for (int i = 0; i < EI_NIDENT; i++)
+		printf("%02x ", ehdr.e_ident[i]);
+	printf("\n");
+	printf("phnum: %d\n", ehdr.e_phnum);
+	printf("shnum: %d\n\n", ehdr.e_shnum);
+}
