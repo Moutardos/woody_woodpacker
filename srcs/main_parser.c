@@ -277,7 +277,7 @@ int main(int argc, char* argv[]) {
 
 	/// OUTPUT ELF ///
 
-	fd = open("parser_result.elf", O_WRONLY | O_CREAT);
+	fd = open("parser_result.elf", O_WRONLY | O_CREAT | O_TRUNC);
 	write(fd, &elf_info.ehdr, sizeof(elf_info.ehdr));
 
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
