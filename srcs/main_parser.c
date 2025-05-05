@@ -7,15 +7,7 @@
 #include "elf_parser.h"
 #include "elf_utils.h"
 
-void print_ehdr(Elf64_Ehdr ehdr) {
-	printf("e_ident: %s\n", ehdr.e_ident);
-	printf("e_ident hex:\n");
-	for (int i = 0; i < EI_NIDENT; i++)
-		printf("%02x ", ehdr.e_ident[i]);
-	printf("\n");
-	printf("phnum: %d\n", ehdr.e_phnum);
-	printf("shnum: %d\n\n", ehdr.e_shnum);
-}
+
 
 int main(int argc, char* argv[]) {
 	if (argc < 2 || argc > 3) {
