@@ -107,14 +107,37 @@ int main(int argc, char* argv[]) {
 	elf_info.ehdr.e_shoff += sizeof(Elf64_Phdr) + bytes;
 
 	int first_load_incremented = 0;
+	int nb_load = 0;
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next) {
 		if (!first_load_incremented && cur->info.p_type == PT_LOAD) {
 			cur->info.p_filesz += sizeof(Elf64_Phdr);
 			cur->info.p_memsz += sizeof(Elf64_Phdr);
 			first_load_incremented = 1;
 		}
-		// if (cur->info.p_type == PT_DYNAMIC) continue;
-		if (cur->info.p_vaddr - VMA_BASE >= data_off + file_buffers.data_size) {
+		if (cur->info.p_type == PT_LOAD) {
+			nb_load++;
+			if (nb_load == 4) {
+				cur->info.p_filesz += bytes;
+				cur->info.p_memsz += bytes;
+				continue;
+			}
+			// if (nb_load == 5)
+			// {
+			// 	cur->info.p_align = 0x1000;
+			// 	cur->info.p_vaddr = 0x503000;
+			// 	cur->info.p_paddr = 0x503000;
+			// 	cur->info.p_offset = 0x03000;
+				
+
+			// }
+		}
+		if (cur->info.p_type == PT_DYNAMIC) 
+		{
+			cur->info.p_filesz = 0x190;
+			cur->info.p_memsz = 0x190;
+			continue;
+		}
+			if (cur->info.p_vaddr > 0 &&  cur->info.p_vaddr - VMA_BASE >= data_off + file_buffers.data_size) {
 			cur->info.p_offset += bytes;
 			cur->info.p_vaddr += bytes;
 			cur->info.p_paddr += bytes;
