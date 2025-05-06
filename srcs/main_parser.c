@@ -277,7 +277,12 @@ int main(int argc, char* argv[]) {
 
 	/// OUTPUT ELF ///
 
-	fd = open("parser_result.elf", O_WRONLY | O_CREAT | O_TRUNC);
+	fd = open("parser_result.elf", O_WRONLY | O_TRUNC | O_CREAT, 0777);
+	if (fd < 0)
+	{
+		printf("Error creating file\n");
+		exit(1);
+	}
 	write(fd, &elf_info.ehdr, sizeof(elf_info.ehdr));
 
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
