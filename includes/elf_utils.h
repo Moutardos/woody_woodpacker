@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <elf.h>
+#include <sys/types.h>
 
 #define PAGE_SIZE 0X200000
 #define NB_PTR_ENTRIES 12
@@ -50,6 +51,7 @@ int is_entry_a_ptr(Elf64_Dyn entry);
 int element_in_array(Elf64_Sxword element, const Elf64_Sxword* array);
 void print_ehdr(Elf64_Ehdr ehdr);
 t_phdr	*find_phdr(t_phdr *phdrs, t_phdr_type type, t_phdr_flag flags_mask);
-t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, unsigned char *name);
+t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, char *name);
+size_t	load_code_buffer(char *file_name, char* buffer, int size);
 
 #endif

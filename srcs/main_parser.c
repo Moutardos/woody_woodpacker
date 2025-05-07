@@ -20,9 +20,6 @@ int	setup_file_buffers(t_file_buffers *fb, int fd, Elf64_Ehdr elf_header){
 	return (0);
 }
 
-
-
-
 int main(int argc, char* argv[]){
 
 	if (argc < 2 || argc > 3) {
@@ -97,34 +94,26 @@ int main(int argc, char* argv[]){
 
 	/// INJECT CODE ///
 
-	Elf64_Addr old_entry = ehdr.e_entry;
-	elf_info.data_offset =
-		(file_buffers.data - file_buffers.file) + file_buffers.data_size;
-	size_t bytes = load_code(&elf_info, "../" DFLT_PATH);
-
-
-	if (old_entry - VMA_BASE >= file_buffers.data_off)
-		old_entry += sizeof(Elf64_Phdr);
-	if (old_entry - VMA_BASE >= file_buffers.data_off + file_buffers.data_size)
-		old_entry += bytes;
-	// elf_info.ehdr.e_entry = 0x40c1040;
-	elf_info.ehdr.e_entry = old_entry;
+	char code_buffer[0x1000];
+	size_t bytes = load_code_buffer(DFLT_PATH, code_buffer, 0x1000);
 
 	elf_info.ehdr.e_shoff += PAGE_SIZE;
 
 	t_phdr		*text_phdr = find_phdr(elf_info.phdrs, PT_LOAD, PF_X);
 	t_shdr		*text_section = find_section(elf_info, file_buffers.file, ".text");
-	Elf64_Off	injection_off = text_phdr->info.p_offset + 
+	Elf64_Off	injection_off = text_section->info.sh_offset + text_section->info.sh_size;
+	Elf64_Off	move_off = text_phdr->info.p_offset + text_phdr->info.p_filesz;
 
-	int first_load_incremented = 0;
-	int nb_load = 0;
-	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next) {
-		if (cur->info.p_offset > )
-		{
+	text_phdr->info.p_filesz += bytes;
+	text_phdr->info.p_memsz += bytes;
+	text_section->info.sh_size += bytes;
+
+	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
+		if (cur->info.p_offset >= injection_off) {
 			cur->info.p_offset += PAGE_SIZE;
+			cur->info.p_paddr += PAGE_SIZE;
+			cur->info.p_vaddr += PAGE_SIZE;
 		}
-	}
-
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next) {
 		if (cur->info.sh_type == SHT_DYNAMIC) {
@@ -138,16 +127,12 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.d_un.d_ptr;
 					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
 
-					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= file_buffers.data_off)
-							entry.d_un.d_ptr += sizeof(Elf64_Phdr);
-						if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
-							entry.d_un.d_ptr += bytes;
+					if (ptr_off >= injection_off)
+						entry.d_un.d_ptr += PAGE_SIZE;
 
-						if (entry.d_un.d_ptr != old_ptr)
-							ft_memmove(file_buffers.file + cursor, &entry,
-									   sizeof(Elf64_Dyn));
-					// }
+					if (entry.d_un.d_ptr != old_ptr)
+						ft_memmove(file_buffers.file + cursor, &entry,
+									sizeof(Elf64_Dyn));
 				}
 
 				cursor += sizeof(Elf64_Dyn);
@@ -166,17 +151,12 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.st_value;
 					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
 
-					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= file_buffers.data_off)
-							entry.st_value += sizeof(Elf64_Phdr);
-						if (entry.st_shndx != 22)
-							if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
-								entry.st_value += bytes;
+					if (ptr_off >= injection_off)
+						entry.st_value += PAGE_SIZE;
 
-						if (entry.st_value != old_ptr)
-							ft_memmove(file_buffers.file + cursor, &entry,
-									   sizeof(Elf64_Sym));
-					// }
+					if (entry.st_value != old_ptr)
+						ft_memmove(file_buffers.file + cursor, &entry,
+									sizeof(Elf64_Sym));
 				}
 			}
 		} else if (cur->info.sh_type == SHT_RELA)
@@ -191,68 +171,23 @@ int main(int argc, char* argv[]){
 					Elf64_Addr	old_ptr = entry.r_offset;
 					Elf64_Off	ptr_off = entry.r_offset - VMA_BASE;
 
-					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= file_buffers.data_off)
-							entry.r_offset += sizeof(Elf64_Phdr);
-						if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
-							entry.r_offset += bytes;
+					if (ptr_off >= injection_off)
+						entry.r_offset += PAGE_SIZE;
 
-						if (entry.r_offset != old_ptr)
-							ft_memmove(file_buffers.file + cursor, &entry,
-										sizeof(Elf64_Rela));			  
-					// }
+					if (entry.r_offset != old_ptr)
+						ft_memmove(file_buffers.file + cursor, &entry,
+									sizeof(Elf64_Rela));
 			}
-		} 
-		// else if (cur->info.sh_type == SHT_GNU_verneed) {
-		// 	Elf64_Verneed entry = {0};
-		// 	Elf64_Vernaux entry_aux = {0};
-		// 	int		  nb_entries = 1;// cur->info.sh_size / cur->info.sh_entsize;
-
-		// 	for (int i = 0, cursor = cur->info.sh_offset; i < nb_entries;
-		// 		i++, cursor += sizeof(Elf64_Verneed)) {
-		// 			ft_memmove(&entry, file_buffers.file + cursor,
-		// 				sizeof(Elf64_Verneed));
-		// 			// Elf64_Addr	old_ptr = entry.vn_aux;
-		// 			// Elf64_Off	ptr_off = entry.vn_aux;
-
-		// 			ft_memmove(&entry_aux, file_buffers.file + cursor + entry.vn_aux,
-		// 				sizeof(Elf64_Vernaux));
-
-		// 			while (entry_aux.vna_next) {
-		// 				ft_memmove(&entry_aux, file_buffers.file + cursor + entry.vn_aux + entry_aux.vna_next,
-		// 					sizeof(Elf64_Vernaux));
-		// 			}
-
-		// 			// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-		// 				// if (ptr_off >= file_buffers.data_off)
-		// 				// 	entry.vn_aux += sizeof(Elf64_Phdr);
-		// 				// if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
-		// 				// 	entry.vn_aux += bytes;
-
-		// 				// if (entry.vn_aux != old_ptr)
-		// 				// 	ft_memmove(file_buffers.file + cursor, &entry,
-		// 				// 				sizeof(Elf64_Verneed));			  
-		// 			// }
-		// 	}
-		// }
+		}
 
 		Elf64_Off addr_off = cur->info.sh_addr > VMA_BASE ? cur->info.sh_addr - VMA_BASE : 0;
 		Elf64_Off off = cur->info.sh_offset; 
-		if (cur->info.sh_offset > 0 /**&& cur->info.sh_offset < file_buffers.file_size
-			&& addr_off > 0 && addr_off < file_buffers.file_size**/) {
-			if (off >= file_buffers.data_off || addr_off >= file_buffers.data_off) {
-				cur->info.sh_offset += sizeof(Elf64_Phdr);
-
+		if (cur->info.sh_offset > 0) {
+			if (off >= injection_off || addr_off >= injection_off) {
+				cur->info.sh_offset += PAGE_SIZE;
+				
 				if (cur->info.sh_addr > VMA_BASE)
-					cur->info.sh_addr += sizeof(Elf64_Phdr);
-			}
-			if (cur->info.sh_type == SHT_DYNAMIC) continue;
-			if (off >= file_buffers.data_off + file_buffers.data_size
-				|| addr_off >= file_buffers.data_off + file_buffers.data_size) {
-				cur->info.sh_offset += bytes;
-
-				if (cur->info.sh_addr > VMA_BASE)
-					cur->info.sh_addr += bytes;
+					cur->info.sh_addr += PAGE_SIZE;
 			}
 		}
 	}
@@ -270,10 +205,20 @@ int main(int argc, char* argv[]){
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
 		write(fd, &cur->info, sizeof(cur->info));
 
-	write(fd, file_buffers.data, file_buffers.data_size);
+	Elf64_Off data_trunc = injection_off - file_buffers.data_off;
+	write(fd, file_buffers.data, data_trunc);
 
-	write(fd, elf_info.current_phdr->data,
-		  elf_info.current_phdr->info.p_filesz);
+	write(fd, code_buffer, bytes);
+
+	// Elf64_Off additional_trunc = move_off - file_buffers.data_off;
+	// size_t additional_bytes = additional_trunc - data_trunc;
+	// write(fd, file_buffers.data + data_trunc, additional_bytes);
+
+	char zeros[PAGE_SIZE] = {0};
+	write(fd, zeros, PAGE_SIZE - bytes);// - additional_bytes);
+
+	// write(fd, file_buffers.data + additional_trunc, file_buffers.data_size - additional_trunc);
+	write(fd, file_buffers.data + data_trunc, file_buffers.data_size - data_trunc);
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next)
 		write(fd, &cur->info, sizeof(cur->info));

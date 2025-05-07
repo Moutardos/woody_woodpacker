@@ -2,6 +2,7 @@
 #include "libft.h"
 
 #include <stdio.h>
+#include <fcntl.h>
 
 int element_in_array(Elf64_Sxword element, const Elf64_Sxword* array) {
 
@@ -43,7 +44,7 @@ t_phdr	*find_phdr(t_phdr *phdrs, t_phdr_type type, t_phdr_flag flags_mask)
 	{
 		if (phdrs->info.p_type == type)
 		{
-			if (phdrs->info.p_flags & flags_mask == flags_mask)
+			if ((phdrs->info.p_flags & flags_mask) == flags_mask)
 				return (phdrs);
 		}
 		phdrs = phdrs->next;
@@ -51,15 +52,15 @@ t_phdr	*find_phdr(t_phdr *phdrs, t_phdr_type type, t_phdr_flag flags_mask)
 	return (NULL);
 }
 
-t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, unsigned char *name)
+t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, char *name)
 {
 	t_shdr* shstrtab = elf_info.shdrs;
 	for (int i = 0; i != elf_info.ehdr.e_shstrndx && shstrtab; i++, shstrtab = shstrtab->next);
 
 	if (shstrtab == NULL) return NULL;
 
-	unsigned char *names = file + shstrtab->info.sh_offset;
-	unsigned char *shdr_name = NULL;
+	char *names = (char*)file + shstrtab->info.sh_offset;
+	char *shdr_name = NULL;
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next) {
 		shdr_name = names + cur->info.sh_name;
@@ -68,4 +69,17 @@ t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, unsigned char *name)
 	}
 	return (NULL);
 
+}
+
+size_t load_code_buffer(char *file_name, char* buffer, int size) {
+	int fd = open(file_name, O_RDONLY);
+	if (fd == -1) {
+		printf("Can't open code file\n");
+		exit(1);
+	}
+	size_t bytes = read(fd, buffer, size);
+
+	close(fd);
+
+	return bytes;
 }
