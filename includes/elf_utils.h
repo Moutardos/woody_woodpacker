@@ -4,6 +4,8 @@
 #include <elf.h>
 
 #define NB_PTR_ENTRIES 12
+#define EHDR_SIZE sizeof(Elf64_Ehdr)
+
 #define MAX(a,b) a > b ? a : b
  
 typedef Elf64_Sxword t_tag;

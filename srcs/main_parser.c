@@ -7,9 +7,22 @@
 #include "elf_parser.h"
 #include "elf_utils.h"
 
+int	setup_file_buffers(t_file_buffers *fb, int fd, Elf64_Ehdr elf_header){
+
+	fb->file_size = elf_header.e_shoff + elf_header.e_shnum * elf_header.e_shentsize;
+	fb->file = ft_calloc(fb->file_size, sizeof(uint8_t));
+
+	ft_memmove(fb->file, &elf_header, EHDR_SIZE);
+	read(fd, fb->file + EHDR_SIZE, fb->file_size - EHDR_SIZE);
+	fb->data_off = elf_header.e_phoff + elf_header.e_phnum * elf_header.e_phentsize;
+	fb->data = fb->file + fb->data_off;
+	fb->data_size = elf_header.e_shoff - fb->data_off;
+	return (0);
+}
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]){
+
 	if (argc < 2 || argc > 3) {
 		printf("Usage: %s <elf_file> [debug]\n", argv[0]);
 		return 1;
@@ -22,28 +35,19 @@ int main(int argc, char* argv[]) {
 	int fd = open(argv[1], O_RDONLY);
 
 	t_elf_info	   elf_info = {0};
-	t_file_buffers file_buffers;
-
-	size_t ehdr_size = sizeof(elf_info.ehdr);
-	read(fd, &elf_info.ehdr, ehdr_size);
-
+	
+	read(fd, &elf_info.ehdr, EHDR_SIZE);
+	
 	if (debug)
 		print_ehdr(elf_info.ehdr);
-
+	
 	Elf64_Ehdr ehdr = elf_info.ehdr;
-	file_buffers.file_size = ehdr.e_shoff + ehdr.e_shnum * ehdr.e_shentsize;
-	file_buffers.file = ft_calloc(file_buffers.file_size, sizeof(uint8_t));
-
-	ft_memmove(file_buffers.file, &elf_info.ehdr, ehdr_size);
-	read(fd, file_buffers.file + ehdr_size, file_buffers.file_size - ehdr_size);
-
+	t_file_buffers file_buffers;
+	setup_file_buffers(&file_buffers, fd, ehdr);
+	
 	close(fd);
 
-	unsigned long data_off = ehdr.e_phoff + ehdr.e_phnum * ehdr.e_phentsize;
-	file_buffers.data_size = ehdr.e_shoff - data_off;
-	file_buffers.data = file_buffers.file + data_off;
-
-	for (int i = 0, cursor = ehdr_size; i < elf_info.ehdr.e_phnum;
+	for (int i = 0, cursor = EHDR_SIZE; i < elf_info.ehdr.e_phnum;
 		 i++, cursor += sizeof(Elf64_Phdr)) {
 		t_phdr* new_phdr = allocate_pheader(&elf_info, NULL);
 		ft_memmove(&new_phdr->info, file_buffers.file + cursor,
@@ -91,18 +95,18 @@ int main(int argc, char* argv[]) {
 
 	/// INJECT CODE ///
 
-	Elf64_Addr old_entry = elf_info.ehdr.e_entry;
+	Elf64_Addr old_entry = ehdr.e_entry;
 	elf_info.data_offset =
 		(file_buffers.data - file_buffers.file) + file_buffers.data_size;
 	size_t bytes = load_code(&elf_info, "../" DFLT_PATH);
 
-	elf_info.ehdr.e_entry = old_entry;
 
-	if (elf_info.ehdr.e_entry - VMA_BASE >= data_off)
-		elf_info.ehdr.e_entry += sizeof(Elf64_Phdr);
-	if (elf_info.ehdr.e_entry - VMA_BASE >= data_off + file_buffers.data_size)
-		elf_info.ehdr.e_entry += bytes;
+	if (old_entry - VMA_BASE >= file_buffers.data_off)
+		old_entry += sizeof(Elf64_Phdr);
+	if (old_entry - VMA_BASE >= file_buffers.data_off + file_buffers.data_size)
+		old_entry += bytes;
 	// elf_info.ehdr.e_entry = 0x40c1040;
+	elf_info.ehdr.e_entry = old_entry;
 
 	elf_info.ehdr.e_shoff += sizeof(Elf64_Phdr) + bytes;
 
@@ -137,7 +141,7 @@ int main(int argc, char* argv[]) {
 			cur->info.p_memsz = 0x190;
 			continue;
 		}
-			if (cur->info.p_vaddr > 0 &&  cur->info.p_vaddr - VMA_BASE >= data_off + file_buffers.data_size) {
+			if (cur->info.p_vaddr > 0 &&  cur->info.p_vaddr - VMA_BASE >= file_buffers.data_off + file_buffers.data_size) {
 			cur->info.p_offset += bytes;
 			cur->info.p_vaddr += bytes;
 			cur->info.p_paddr += bytes;
@@ -157,9 +161,9 @@ int main(int argc, char* argv[]) {
 					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
 
 					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= data_off)
+						if (ptr_off >= file_buffers.data_off)
 							entry.d_un.d_ptr += sizeof(Elf64_Phdr);
-						if (ptr_off >= data_off + file_buffers.data_size)
+						if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
 							entry.d_un.d_ptr += bytes;
 
 						if (entry.d_un.d_ptr != old_ptr)
@@ -185,11 +189,11 @@ int main(int argc, char* argv[]) {
 					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
 
 					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= data_off)
+						if (ptr_off >= file_buffers.data_off)
 							entry.st_value += sizeof(Elf64_Phdr);
 						if (entry.st_shndx != 22)
-						if (ptr_off >= data_off + file_buffers.data_size)
-							entry.st_value += bytes;
+							if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
+								entry.st_value += bytes;
 
 						if (entry.st_value != old_ptr)
 							ft_memmove(file_buffers.file + cursor, &entry,
@@ -210,9 +214,9 @@ int main(int argc, char* argv[]) {
 					Elf64_Off	ptr_off = entry.r_offset - VMA_BASE;
 
 					// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-						if (ptr_off >= data_off)
+						if (ptr_off >= file_buffers.data_off)
 							entry.r_offset += sizeof(Elf64_Phdr);
-						if (ptr_off >= data_off + file_buffers.data_size)
+						if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
 							entry.r_offset += bytes;
 
 						if (entry.r_offset != old_ptr)
@@ -242,9 +246,9 @@ int main(int argc, char* argv[]) {
 		// 			}
 
 		// 			// if (ptr_off > 0 && ptr_off < file_buffers.file_size) {
-		// 				// if (ptr_off >= data_off)
+		// 				// if (ptr_off >= file_buffers.data_off)
 		// 				// 	entry.vn_aux += sizeof(Elf64_Phdr);
-		// 				// if (ptr_off >= data_off + file_buffers.data_size)
+		// 				// if (ptr_off >= file_buffers.data_off + file_buffers.data_size)
 		// 				// 	entry.vn_aux += bytes;
 
 		// 				// if (entry.vn_aux != old_ptr)
@@ -258,15 +262,15 @@ int main(int argc, char* argv[]) {
 		Elf64_Off off = cur->info.sh_offset; 
 		if (cur->info.sh_offset > 0 /**&& cur->info.sh_offset < file_buffers.file_size
 			&& addr_off > 0 && addr_off < file_buffers.file_size**/) {
-			if (off >= data_off || addr_off >= data_off) {
+			if (off >= file_buffers.data_off || addr_off >= file_buffers.data_off) {
 				cur->info.sh_offset += sizeof(Elf64_Phdr);
 
 				if (cur->info.sh_addr > VMA_BASE)
 					cur->info.sh_addr += sizeof(Elf64_Phdr);
 			}
 			if (cur->info.sh_type == SHT_DYNAMIC) continue;
-			if (off >= data_off + file_buffers.data_size
-				|| addr_off >= data_off + file_buffers.data_size) {
+			if (off >= file_buffers.data_off + file_buffers.data_size
+				|| addr_off >= file_buffers.data_off + file_buffers.data_size) {
 				cur->info.sh_offset += bytes;
 
 				if (cur->info.sh_addr > VMA_BASE)

@@ -4,11 +4,13 @@
 #include <stdint.h>
 
 typedef struct s_buffers {
-	uint8_t* file;
-	uint8_t* data;
+	uint8_t* 		file;
+	uint8_t* 		data;
 
-	unsigned long file_size;
-	unsigned long data_size;
+	unsigned long	file_size;
+	unsigned long	data_size;
+	
+	unsigned long	data_off;
 } t_file_buffers;
 
 #endif	// ELF_PARSER_H
