@@ -21,8 +21,6 @@ int	setup_file_buffers(t_file_buffers *fb, int fd, Elf64_Ehdr elf_header){
 }
 
 
-
-
 int main(int argc, char* argv[]){
 
 	if (argc < 2 || argc > 3) {
@@ -110,21 +108,45 @@ int main(int argc, char* argv[]){
 	// elf_info.ehdr.e_entry = 0x40c1040;
 	elf_info.ehdr.e_entry = old_entry;
 
-	elf_info.ehdr.e_shoff += PAGE_SIZE;
-
-	t_phdr		*text_phdr = find_phdr(elf_info.phdrs, PT_LOAD, PF_X);
-	t_shdr		*text_section = find_section(elf_info, file_buffers.file, ".text");
-	Elf64_Off	injection_off = text_phdr->info.p_offset + 
+	elf_info.ehdr.e_shoff += sizeof(Elf64_Phdr) + bytes;
 
 	int first_load_incremented = 0;
 	int nb_load = 0;
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next) {
-		if (cur->info.p_offset > )
+		if (!first_load_incremented && cur->info.p_type == PT_LOAD) {
+			cur->info.p_filesz += sizeof(Elf64_Phdr);
+			cur->info.p_memsz += sizeof(Elf64_Phdr);
+			first_load_incremented = 1;
+		}
+		if (cur->info.p_type == PT_LOAD) {
+			nb_load++;
+			if (nb_load == 4) {
+				cur->info.p_filesz += bytes;
+				cur->info.p_memsz += bytes;
+				continue;
+			}
+			// if (nb_load == 5)
+			// {
+			// 	cur->info.p_align = 0x1000;
+			// 	cur->info.p_vaddr = 0x503000;
+			// 	cur->info.p_paddr = 0x503000;
+			// 	cur->info.p_offset = 0x03000;
+				
+
+			// }
+		}
+		if (cur->info.p_type == PT_DYNAMIC) 
 		{
-			cur->info.p_offset += PAGE_SIZE;
+			cur->info.p_filesz = 0x190;
+			cur->info.p_memsz = 0x190;
+			continue;
+		}
+			if (cur->info.p_vaddr > 0 &&  cur->info.p_vaddr - VMA_BASE >= file_buffers.data_off + file_buffers.data_size) {
+			cur->info.p_offset += bytes;
+			cur->info.p_vaddr += bytes;
+			cur->info.p_paddr += bytes;
 		}
 	}
-
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next) {
 		if (cur->info.sh_type == SHT_DYNAMIC) {

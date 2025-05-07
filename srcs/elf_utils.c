@@ -1,4 +1,5 @@
 #include "elf_utils.h"
+#include "libft.h"
 
 #include <stdio.h>
 
@@ -34,4 +35,37 @@ void print_ehdr(Elf64_Ehdr ehdr) {
 	printf("\n");
 	printf("phnum: %d\n", ehdr.e_phnum);
 	printf("shnum: %d\n\n", ehdr.e_shnum);
+}
+
+t_phdr	*find_phdr(t_phdr *phdrs, t_phdr_type type, t_phdr_flag flags_mask)
+{
+	while (phdrs != NULL)
+	{
+		if (phdrs->info.p_type == type)
+		{
+			if (phdrs->info.p_flags & flags_mask == flags_mask)
+				return (phdrs);
+		}
+		phdrs = phdrs->next;
+	}
+	return (NULL);
+}
+
+t_shdr	*find_section(t_elf_info elf_info, uint8_t* file, unsigned char *name)
+{
+	t_shdr* shstrtab = elf_info.shdrs;
+	for (int i = 0; i != elf_info.ehdr.e_shstrndx && shstrtab; i++, shstrtab = shstrtab->next);
+
+	if (shstrtab == NULL) return NULL;
+
+	unsigned char *names = file + shstrtab->info.sh_offset;
+	unsigned char *shdr_name = NULL;
+
+	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next) {
+		shdr_name = names + cur->info.sh_name;
+		if (ft_strcmp(name, shdr_name) == 0)
+			return cur;
+	}
+	return (NULL);
+
 }
