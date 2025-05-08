@@ -109,7 +109,7 @@ int main(int argc, char* argv[]){
 	text_section->info.sh_size += bytes;
 
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
-		if (cur->info.p_offset >= injection_off) {
+		if (cur->info.p_offset >= move_off) {
 			cur->info.p_offset += PAGE_SIZE;
 			cur->info.p_paddr += PAGE_SIZE;
 			cur->info.p_vaddr += PAGE_SIZE;
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.d_un.d_ptr;
 					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
 
-					if (ptr_off >= injection_off)
+					if (ptr_off >= move_off)
 						entry.d_un.d_ptr += PAGE_SIZE;
 
 					if (entry.d_un.d_ptr != old_ptr)
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.st_value;
 					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
 
-					if (ptr_off >= injection_off)
+					if (ptr_off >= move_off)
 						entry.st_value += PAGE_SIZE;
 
 					if (entry.st_value != old_ptr)
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr	old_ptr = entry.r_offset;
 					Elf64_Off	ptr_off = entry.r_offset - VMA_BASE;
 
-					if (ptr_off >= injection_off)
+					if (ptr_off >= move_off)
 						entry.r_offset += PAGE_SIZE;
 
 					if (entry.r_offset != old_ptr)
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]){
 		Elf64_Off addr_off = cur->info.sh_addr > VMA_BASE ? cur->info.sh_addr - VMA_BASE : 0;
 		Elf64_Off off = cur->info.sh_offset; 
 		if (cur->info.sh_offset > 0) {
-			if (off >= injection_off || addr_off >= injection_off) {
+			if (off >= move_off || addr_off >= move_off) {
 				cur->info.sh_offset += PAGE_SIZE;
 				
 				if (cur->info.sh_addr > VMA_BASE)
@@ -210,15 +210,14 @@ int main(int argc, char* argv[]){
 
 	write(fd, code_buffer, bytes);
 
-	// Elf64_Off additional_trunc = move_off - file_buffers.data_off;
-	// size_t additional_bytes = additional_trunc - data_trunc;
-	// write(fd, file_buffers.data + data_trunc, additional_bytes);
+	Elf64_Off additional_trunc = move_off - injection_off;
+	write(fd, file_buffers.data + data_trunc, additional_trunc);
 
 	char zeros[PAGE_SIZE] = {0};
-	write(fd, zeros, PAGE_SIZE - bytes);// - additional_bytes);
+	write(fd, zeros, PAGE_SIZE - bytes);
 
-	// write(fd, file_buffers.data + additional_trunc, file_buffers.data_size - additional_trunc);
-	write(fd, file_buffers.data + data_trunc, file_buffers.data_size - data_trunc);
+	Elf64_Off after_load = data_trunc + additional_trunc;
+	write(fd, file_buffers.data + after_load, file_buffers.data_size - after_load);
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next)
 		write(fd, &cur->info, sizeof(cur->info));
