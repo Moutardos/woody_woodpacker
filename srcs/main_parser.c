@@ -32,6 +32,10 @@ int main(int argc, char* argv[]){
 	/// PARSING ///
 
 	int fd = open(argv[1], O_RDONLY);
+	if (fd < 0) {
+		printf("Error opening '%s' file\n", argv[1]);
+		return 1;
+	}
 
 	t_elf_info	   elf_info = {0};
 	
@@ -97,19 +101,19 @@ int main(int argc, char* argv[]){
 	char code_buffer[0x1000];
 	size_t bytes = load_code_buffer(DFLT_PATH, code_buffer, 0x1000);
 
-	elf_info.ehdr.e_shoff += PAGE_SIZE;
-
 	t_phdr		*text_phdr = find_phdr(elf_info.phdrs, PT_LOAD, PF_X);
 	t_shdr		*text_section = find_section(elf_info, file_buffers.file, ".text");
-	Elf64_Off	injection_off = text_section->info.sh_offset + text_section->info.sh_size;
-	Elf64_Off	move_off = text_phdr->info.p_offset + text_phdr->info.p_filesz;
+	Elf64_Off	injection_off = text_phdr->info.p_offset + text_phdr->info.p_filesz;
+
+	elf_info.ehdr.e_shoff += PAGE_SIZE;
+	elf_info.ehdr.e_entry = text_phdr->info.p_vaddr + text_phdr->info.p_filesz;
 
 	text_phdr->info.p_filesz += bytes;
 	text_phdr->info.p_memsz += bytes;
 	text_section->info.sh_size += bytes;
 
 	for (t_phdr* cur = elf_info.phdrs; cur; cur = cur->next)
-		if (cur->info.p_offset >= move_off) {
+		if (cur->info.p_offset >= injection_off) {
 			cur->info.p_offset += PAGE_SIZE;
 			cur->info.p_paddr += PAGE_SIZE;
 			cur->info.p_vaddr += PAGE_SIZE;
@@ -127,7 +131,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.d_un.d_ptr;
 					Elf64_Off  ptr_off = entry.d_un.d_ptr - VMA_BASE;
 
-					if (ptr_off >= move_off)
+					if (ptr_off >= injection_off)
 						entry.d_un.d_ptr += PAGE_SIZE;
 
 					if (entry.d_un.d_ptr != old_ptr)
@@ -151,7 +155,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr old_ptr = entry.st_value;
 					Elf64_Off  ptr_off = entry.st_value - VMA_BASE;
 
-					if (ptr_off >= move_off)
+					if (ptr_off >= injection_off)
 						entry.st_value += PAGE_SIZE;
 
 					if (entry.st_value != old_ptr)
@@ -171,7 +175,7 @@ int main(int argc, char* argv[]){
 					Elf64_Addr	old_ptr = entry.r_offset;
 					Elf64_Off	ptr_off = entry.r_offset - VMA_BASE;
 
-					if (ptr_off >= move_off)
+					if (ptr_off >= injection_off)
 						entry.r_offset += PAGE_SIZE;
 
 					if (entry.r_offset != old_ptr)
@@ -183,7 +187,7 @@ int main(int argc, char* argv[]){
 		Elf64_Off addr_off = cur->info.sh_addr > VMA_BASE ? cur->info.sh_addr - VMA_BASE : 0;
 		Elf64_Off off = cur->info.sh_offset; 
 		if (cur->info.sh_offset > 0) {
-			if (off >= move_off || addr_off >= move_off) {
+			if (off >= injection_off || addr_off >= injection_off) {
 				cur->info.sh_offset += PAGE_SIZE;
 				
 				if (cur->info.sh_addr > VMA_BASE)
@@ -210,14 +214,10 @@ int main(int argc, char* argv[]){
 
 	write(fd, code_buffer, bytes);
 
-	Elf64_Off additional_trunc = move_off - injection_off;
-	write(fd, file_buffers.data + data_trunc, additional_trunc);
-
 	char zeros[PAGE_SIZE] = {0};
 	write(fd, zeros, PAGE_SIZE - bytes);
 
-	Elf64_Off after_load = data_trunc + additional_trunc;
-	write(fd, file_buffers.data + after_load, file_buffers.data_size - after_load);
+	write(fd, file_buffers.data + data_trunc, file_buffers.data_size - data_trunc);
 
 	for (t_shdr* cur = elf_info.shdrs; cur; cur = cur->next)
 		write(fd, &cur->info, sizeof(cur->info));
